@@ -1,0 +1,515 @@
+{
+  "name": "Prospect Discovery Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "eee6146b-ba72-48cd-a0f9-3d51c2d96995",
+      "name": "Weekly Execution Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1952,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const queries = [\n{\nregion: 'USA',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"SaaS\" OR \"software development\" OR \"B2B software\") (\"United States\" OR USA) -recruiter -staffing -jobs',\n},\n{\nregion: 'USA',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"IT services and IT consulting\" OR \"technology consulting\" OR \"digital marketing agency\" OR \"design agency\") (\"United States\" OR USA) -recruiter -staffing -jobs',\n},\n{\nregion: 'Europe',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"SaaS\" OR \"software development\" OR \"fintech\") (\"United Kingdom\" OR Germany OR Ireland OR Netherlands OR Sweden OR Norway OR Denmark OR France OR Estonia) -recruiter -staffing -jobs',\n},\n{\nregion: 'Europe',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"IT services\" OR \"technology consulting\" OR \"digital agency\" OR \"design agency\") (\"United Kingdom\" OR Germany OR Ireland OR Netherlands) -recruiter -staffing -jobs',\n},\n{\nregion: 'Asia',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"SaaS\" OR \"software development\" OR \"fintech\") (Singapore OR India OR Japan OR \"South Korea\" OR \"Hong Kong\") -recruiter -staffing -jobs',\n},\n{\nregion: 'Asia',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"IT services\" OR \"technology consulting\" OR \"digital agency\" OR \"marketing agency\") (Singapore OR India OR Japan OR Malaysia OR Philippines) -recruiter -staffing -jobs',\n},\n{\nregion: 'UAE',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"SaaS\" OR \"software development\" OR \"fintech\") (\"United Arab Emirates\" OR UAE OR Dubai OR \"Abu Dhabi\") -property -properties -real-estate -recruiter -staffing -jobs',\n},\n{\nregion: 'UAE',\nquery: 'site:linkedin.com/company/ (\"11-50 employees\" OR \"51-200 employees\") (\"IT services\" OR \"technology consulting\" OR \"digital marketing agency\" OR \"design agency\") (\"United Arab Emirates\" OR UAE OR Dubai OR \"Abu Dhabi\") -property -properties -real-estate -recruiter -staffing -jobs',\n},\n];\n\nreturn queries.map((q, index) => ({\njson: {\n...q,\ndiscoveryBatch: index + 1,\nmaxResults: 4,\n},\n}));\n"
+      },
+      "id": "9ab2c0a0-82e3-4799-a4b5-1a439f3fb6f2",
+      "name": "Generate Targeted Discovery Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1728,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "tavilyApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.query, topic: 'general', search_depth: 'advanced', max_results: $json.maxResults || 4, include_answer: false, include_raw_content: false, exclude_domains: ['linkedin.com/posts','linkedin.com/in','linkedin.com/feed'] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8d3a5577-17f4-48e9-bcac-bc15abf22458",
+      "name": "Tavily Targeted Company Discovery",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1504,
+        -160
+      ],
+      "credentials": {
+        "id": {
+          "id": null,
+          "name": "YOUR_CREDENTIALS_HERE"
+        },
+        "name": {
+          "id": null,
+          "name": "Tavily account"
+        },
+        "tavilyApi": {
+          "id": "YOUR_CREDENTIALS_HERE",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CREDENTIALS_HERE",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1991463304,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_ID_HERE/edit#gid=1991463304"
+        },
+        "options": {}
+      },
+      "id": "b10daadb-68c8-4eb7-8a34-0be862042d86",
+      "name": "Get Existing Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1600,
+        176
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIALS_HERE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item=>({json:{...item.json,__source:'existing'}}));"
+      },
+      "id": "3d1b87d6-6824-40b7-96a5-9cb7d479fd95",
+      "name": "Mark Existing Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        176
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "d79b8647-63b3-4d20-8e3e-d821dc67522c",
+      "name": "Merge New Candidates With Existing Leads",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1056,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst newLeads = items\n  .filter(item => item.json.__source === 'new')\n  .map(item => item.json);\n\nconst existingLeads = items\n  .filter(item => item.json.__source === 'existing')\n  .map(item => item.json);\n\nfunction normalizeName(value) {\n  return String(value || '')\n    .toLowerCase()\n    .replace(/&/g, 'and')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .replace(/\\b(incorporated|inc|limited|ltd|llc|plc|corp|corporation|company|co)\\b/g, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction getLinkedInSlug(lead) {\n  const suppliedSlug = String(lead.linkedinSlug || '').trim();\n\n  if (suppliedSlug) {\n    return suppliedSlug.toLowerCase();\n  }\n\n  const url = String(\n    lead.linkedinUrl || lead['LinkedIn URL'] || lead.LinkedIn || ''\n  );\n\n  const match = url.match(\n    /(?:^|\\/\\/)(?:[a-z]{2,3}\\.)?linkedin\\.com\\/company\\/([^/?#]+)/i\n  );\n\n  return match ? match[1].toLowerCase() : '';\n}\n\nconst existingNames = new Set();\nconst existingSlugs = new Set();\n\nfor (const lead of existingLeads) {\n  const name = normalizeName(\n    lead.companyName || lead['Company Name']\n  );\n\n  const slug = getLinkedInSlug(lead);\n\n  if (name) existingNames.add(name);\n  if (slug) existingSlugs.add(slug);\n}\n\nconst seenNames = new Set();\nconst seenSlugs = new Set();\nconst output = [];\n\nfor (const lead of newLeads) {\n  const name = normalizeName(\n    lead.companyName || lead['Company Name']\n  );\n\n  const slug = getLinkedInSlug(lead);\n\n  if (!name && !slug) continue;\n\n  const alreadyExists =\n    (name && existingNames.has(name)) ||\n    (slug && existingSlugs.has(slug));\n\n  const repeatedInBatch =\n    (name && seenNames.has(name)) ||\n    (slug && seenSlugs.has(slug));\n\n  if (alreadyExists || repeatedInBatch) continue;\n\n  if (name) seenNames.add(name);\n  if (slug) seenSlugs.add(slug);\n\n  output.push({\n    json: {\n      ...lead,\n      __source: 'new'\n    }\n  });\n}\n\nreturn output;\n"
+      },
+      "id": "a9519a7c-4da6-49f0-bf3a-07d92929a905",
+      "name": "Deduplicate Against Google Sheets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -832,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const lead=$input.item.json||{};\nconst company=String(lead.companyName||'').trim();\nconst country=String(lead.country||'').trim();\nconst industry=String(lead.industry||'').trim();\nconst query=`\"${company}\" ${country!=='Unknown'?`\"${country}\"`:''} ${industry} (revenue OR \"annual revenue\" OR \"estimated revenue\" OR founded OR \"year founded\" OR hiring OR careers OR expansion OR growth)`;\nreturn {json:{...lead,budgetResearchQuery:query,maxResults:5}};"
+      },
+      "id": "0dbbaffa-6158-434d-9a2b-170675ab0c28",
+      "name": "Generate Lightweight Budget Signal Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "tavilyApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.budgetResearchQuery, topic: 'general', search_depth: 'basic', max_results: $json.maxResults || 5, include_answer: false, include_raw_content: false, exclude_domains: ['linkedin.com/posts','linkedin.com/in','linkedin.com/feed'] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "6c756d41-c0ad-4738-8275-6210d3853a6a",
+      "name": "Tavily Lightweight Budget Signal Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        -32
+      ],
+      "credentials": {
+        "id": {
+          "id": null,
+          "name": "YOUR_CREDENTIALS_HERE"
+        },
+        "name": {
+          "id": null,
+          "name": "Tavily account"
+        },
+        "tavilyApi": {
+          "id": "YOUR_CREDENTIALS_HERE",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const lead=$('Generate Lightweight Budget Signal Query').item.json||{};\nconst data=$input.item.json||{};\nconst results=Array.isArray(data.results)?data.results:[];\nconst company=String(lead.companyName||'').trim();\nconst norm=s=>String(s||'').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').replace(/\\s+/g,' ').trim();\nconst companyNorm=norm(company);\nconst credibleDomains=/crunchbase\\.com|growjo\\.com|getlatka\\.com|zoominfo\\.com|pitchbook\\.com|tracxn\\.com|dealroom\\.co|cbinsights\\.com|craft\\.co|companiesmarketcap\\.com|forbes\\.com|bloomberg\\.com|reuters\\.com|techcrunch\\.com|businesswire\\.com|prnewswire\\.com|inc\\.com|ft\\.com|wsj\\.com|sifted\\.eu|thenextweb\\.com|venturebeat\\.com|linkedin\\.com\\/company/i;\nfunction mentionsCompany(t){const n=norm(t);return companyNorm.length>=4&&(n.includes(companyNorm)||companyNorm.split(' ').filter(w=>w.length>3).every(w=>n.includes(w)));}\nconst evidence=[]; let revenueM=null, foundedYear=null, hiring=false, hiringStrong=false, growth=false;\nconst currentYear=new Date().getFullYear();\nfor(const r of results){\n const title=String(r.title||'');const content=String(r.content||r.raw_content||'');const url=String(r.url||'');const text=`${title}\\n${content}`;\n if(!mentionsCompany(text)) continue;\n const sourceDomain=(url.match(/^https?:\\/\\/([^/]+)/i)||[])[1]||'';\n const credible=credibleDomains.test(url)||/annual report|press release|funding announcement|investor/i.test(title+' '+content);\n // Revenue is only scored when source quality is plausibly credible and the text explicitly ties the figure to revenue.\n if(revenueM===null&&credible&&/revenue|turnover|sales/i.test(text)){\n  let m=text.match(/(?:annual revenue|estimated revenue|revenue estimate|revenue|turnover|annual sales)[^$€£\\n]{0,45}(?:US\\$|USD\\s*|\\$)\\s*([\\d,.]+)\\s*(billion|bn|million|mn|m|b|k)?/i);\n  if(!m) m=text.match(/(?:US\\$|\\$)\\s*([\\d,.]+)\\s*(billion|bn|million|mn|m|b|k)?[^\\n]{0,35}(?:annual revenue|estimated revenue|revenue|turnover|sales)/i);\n  if(m){let n=Number(String(m[1]).replace(/,/g,''));const unit=String(m[2]||'').toLowerCase();if(['billion','bn','b'].includes(unit))n*=1000;else if(['k'].includes(unit))n/=1000; if(Number.isFinite(n)&&n>0&&n<1000000){revenueM=n;evidence.push(`Revenue evidence approximately $${n}M (${sourceDomain||'source unlabelled'})`);}}\n }\n let fm=text.match(/(?:founded|established|founded in|established in|year founded|founded year|since)\\s*(?:in\\s*)?(19\\d{2}|20[0-2]\\d)\\b/i);\n if(!fm) fm=text.match(/(?:company was founded|founded by[^.]{0,100}\\bin\\s+)(19\\d{2}|20[0-2]\\d)\\b/i);\n if(foundedYear===null&&fm){const y=Number(fm[1]);if(y>=1950&&y<=currentYear){foundedYear=y;evidence.push(`Founded/established ${y} (source: ${sourceDomain||'unlabelled'})`);}}\n if(/careers|open positions|we are hiring|join our team|job openings|current openings|multiple vacancies|open roles/i.test(text)){hiring=true;if(/multiple vacancies|\\b\\d{2,}\\s+(?:open|current)?\\s*(?:roles|positions|jobs|vacancies)|hiring across|actively hiring|rapidly hiring/i.test(text))hiringStrong=true;}\n if(/expanded into|expansion|grew by|growth of|year.over.year growth|raised a series|new office|opened an office|scaling (?:the )?team|rapid growth|customer growth|headcount growth/i.test(text)){growth=true;}\n if(evidence.length<8&&(/founded|revenue|hiring|growth|expansion|employees/i.test(text))) evidence.push(`${title||sourceDomain}: ${content.slice(0,240).replace(/\\s+/g,' ').trim()}`);\n}\nlet score=0;const reasons=[];\nconst min=Number(lead.employeeCountMin),max=Number(lead.employeeCountMax);\nif(Number.isFinite(min)&&Number.isFinite(max)){\n const mid=(min+max)/2;\n if(mid>=125){score+=25;reasons.push(`employee scale ${lead.companySize} (+25)`)}\n else if(mid>=51){score+=18;reasons.push(`employee scale ${lead.companySize} (+18)`)}\n else {score+=8;reasons.push(`employee scale ${lead.companySize} (+8)`)}\n}\nif(revenueM!==null){if(revenueM>=25){score+=30;reasons.push('credible revenue signal ≥$25M (+30)')}else if(revenueM>=10){score+=24;reasons.push('credible revenue signal $10M–$24M (+24)')}else if(revenueM>=2){score+=16;reasons.push('credible revenue signal $2M–$9M (+16)')}else{score+=6;reasons.push('credible revenue signal below $2M (+6)')}}\nif(growth){score+=10;reasons.push('growth/expansion signal (+10)')}\nif(hiringStrong){score+=10;reasons.push('strong hiring signal (+10)')}else if(hiring){score+=5;reasons.push('hiring/careers signal (+5)')}\nif(foundedYear!==null){const years=Math.max(0,currentYear-foundedYear);if(years>=10){score+=15;reasons.push(`${years} years operating (+15)`)}else if(years>=6){score+=10;reasons.push(`${years} years operating (+10)`)}else if(years>=3){score+=6;reasons.push(`${years} years operating (+6)`)}else{score+=3;reasons.push(`${years} years operating (+3)`)}}\nlet label='Low';if(score>=65)label='High';else if(score>=40)label='Medium';\nconst confidence=(revenueM!==null&&foundedYear!==null&&(growth||hiring))?'High':((revenueM!==null||foundedYear!==null||growth||hiring)?'Medium':'Low');\nconst basis=reasons.length?reasons.join('; '):'Only the LinkedIn employee-size signal was available';\nconst evidenceText=evidence.slice(0,5).join(' | ');\nconst budgetFit=`${label} (${score}/100; ${confidence} evidence confidence) — ${basis}`;\nreturn {json:{\n companyName:lead.companyName,linkedinUrl:lead.linkedinUrl,companySize:lead.companySize,country:lead.country,industry:lead.industry,\n budgetFit,budgetScore:score,budgetConfidence:confidence,budgetEvidence:evidenceText||'No reliable company-specific revenue, growth/hiring, or founding-year evidence found.',\n targetRegion:lead.targetRegion,regionPriority:lead.regionPriority,sizeEvidence:lead.sizeEvidence\n}};"
+      },
+      "id": "7f2ba1b0-deca-48ce-b4ba-0a0ab969f2e7",
+      "name": "Calculate Lightweight Budget Fit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j=$input.item.json||{}; return {json:{companyName:j.companyName||'',linkedinUrl:j.linkedinUrl||'',companySize:j.companySize||'Unknown',country:j.country||'Unknown',industry:j.industry||'Unknown',budgetFit:j.budgetFit||'Low (0/100; Low evidence confidence) — No reliable budget signals found'}};"
+      },
+      "id": "a60c1ea6-1d2f-44e8-a458-03ed33570e35",
+      "name": "Prepare Six-Column V1 Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_CREDENTIALS_HERE",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1991463304,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_ID_HERE/"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Company Name": "={{ $json.companyName }}",
+            "LinkedIn URL": "={{ $json.linkedinUrl }}",
+            "Company Size": "={{ $json.companySize }}",
+            "Country": "={{ $json.country }}",
+            "Industry": "={{ $json.industry }}",
+            "Budget Fit": "={{ $json.budgetFit }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn URL",
+              "displayName": "LinkedIn URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company Size",
+              "displayName": "Company Size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Industry",
+              "displayName": "Industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Budget Fit",
+              "displayName": "Budget Fit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "4a81ff1b-76eb-47b2-997c-269d32f15be4",
+      "name": "Save V1 Prospects to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        352,
+        -32
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIALS_HERE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\nconst queryItems = $('Generate Targeted Discovery Queries').all();\n\nconst seen = new Set();\nconst leads = [];\n\nfunction clean(v) {\n  return String(v || '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction slugFromUrl(url) {\n  const m = String(url || '').match(\n    /(?:^|\\/\\/)(?:[a-z]{2,3}\\.)?linkedin\\.com\\/company\\/([^/?#]+)/i\n  );\n\n  return m ? m[1].replace(/\\/$/, '') : '';\n}\n\nfunction industryFrom(text) {\n  const t = String(text || '').toLowerCase();\n\n  const groups = [\n    [\n      'SaaS / Software',\n      /\\bsaas\\b|software development|software company|software platform|cloud platform|developer tools|enterprise software|embedded software/\n    ],\n    [\n      'IT Services / Consulting',\n      /it services|information technology|technology consulting|managed services|systems integrator|it consulting/\n    ],\n    [\n      'Marketing / Digital Agency',\n      /marketing agency|digital agency|growth marketing|advertising agency|performance marketing|digital marketing/\n    ],\n    [\n      'Design / Product Agency',\n      /design agency|product design|ux design|user experience|creative studio|product studio/\n    ],\n    [\n      'Fintech',\n      /fintech|financial technology|payments platform|financial software|digital banking/\n    ]\n  ];\n\n  for (const [label, re] of groups) {\n    if (re.test(t)) return label;\n  }\n\n  return 'Unknown';\n}\n\nfunction sizeFrom(text) {\n  const s = String(text || '').replace(/\\r/g, '\\n');\n\n  // Prefer a definite employee count when explicitly labelled.\n  const exactPatterns = [\n    /Employees\\s*[\\n\\s]*[-•]?\\s*Now\\s*:\\s*(\\d{1,5})\\b/i,\n    /\\bcompany employees?\\s*[:\\n-]*\\s*(\\d{1,5})\\b/i,\n    /\\bnumber of employees\\s*[:\\n-]*\\s*(\\d{1,5})\\b/i\n  ];\n\n  for (const re of exactPatterns) {\n    const m = s.match(re);\n    if (!m) continue;\n\n    const n = Number(m[1]);\n    if (n < 1) continue;\n\n    return {\n      label: String(n),\n      min: n,\n      max: n,\n      exact: true\n    };\n  }\n\n  // If no definite count is found, accept a stated employee-size band.\n  const bandPatterns = [\n    /\\b(\\d{1,5})\\s*[-–—]\\s*(\\d{1,5})\\s+employees?\\b/i,\n    /company size\\s*[:\\n-]*\\s*(\\d{1,5})\\s*[-–—]\\s*(\\d{1,5})\\b/i\n  ];\n\n  for (const re of bandPatterns) {\n    const m = s.match(re);\n    if (!m) continue;\n\n    const min = Number(m[1]);\n    const max = Number(m[2]);\n\n    if (min < 1 || max < min) continue;\n\n    const context = s.slice(\n      Math.max(0, m.index - 150),\n      Math.min(s.length, m.index + m[0].length + 100)\n    );\n\n    // Avoid mistaking customer or user counts for employee counts.\n    if (\n      /customers?|clients?|users?|target market|served businesses/i.test(context)\n    ) {\n      continue;\n    }\n\n    return {\n      label: `${min}-${max}`,\n      min,\n      max,\n      exact: false\n    };\n  }\n\n  return null;\n}\n\nfunction countryFrom(text) {\n  const s = String(text || '');\n\n  const m = s.match(\n    /(?:headquarters|headquartered|based in|location)\\s*[:\\-]?\\s*([^\\n.;]{2,100})/i\n  );\n\n  const context = m ? m[1] : s;\n  const t = (context + ' ' + s.slice(0, 500)).toLowerCase();\n\n  const states = /\\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|united states|\\busa\\b|u\\.s\\.a\\.|\\bus\\b)\\b/;\n\n  if (states.test(t)) return 'United States';\n\n  const countries = [\n    ['United Arab Emirates', /united arab emirates|\\buae\\b|dubai|abu dhabi/],\n    ['United Kingdom', /united kingdom|\\buk\\b|england|scotland|wales|london|manchester/],\n    ['Germany', /germany|berlin|munich|hamburg/],\n    ['Ireland', /ireland|dublin/],\n    ['Netherlands', /netherlands|amsterdam/],\n    ['France', /france|paris/],\n    ['Spain', /spain|madrid|barcelona/],\n    ['Italy', /italy|milan|rome/],\n    ['Portugal', /portugal|lisbon/],\n    ['Sweden', /sweden|stockholm/],\n    ['Norway', /norway|oslo/],\n    ['Denmark', /denmark|copenhagen/],\n    ['Finland', /finland|helsinki/],\n    ['Estonia', /estonia|tallinn/],\n    ['Poland', /poland|warsaw/],\n    ['Switzerland', /switzerland|zurich/],\n    ['Austria', /austria|vienna/],\n    ['Belgium', /belgium|brussels/],\n    ['Czechia', /czechia|czech republic|prague/],\n    ['Romania', /romania|bucharest/],\n    ['Lithuania', /lithuania|vilnius/],\n    ['Latvia', /latvia|riga/],\n    ['Greece', /greece|athens/],\n    ['Ukraine', /ukraine|kyiv/],\n    ['Singapore', /singapore/],\n    ['India', /india|bengaluru|bangalore|mumbai|new delhi|hyderabad/],\n    ['Japan', /japan|tokyo/],\n    ['South Korea', /south korea|seoul/],\n    ['Hong Kong', /hong kong/],\n    ['Taiwan', /taiwan|taipei/],\n    ['Malaysia', /malaysia|kuala lumpur/],\n    ['Philippines', /philippines|manila/],\n    ['Indonesia', /indonesia|jakarta/],\n    ['Thailand', /thailand|bangkok/],\n    ['Vietnam', /vietnam|ho chi minh/],\n    ['China', /china|shanghai|beijing|shenzhen/],\n    ['Australia', /australia|sydney|melbourne/]\n  ];\n\n  for (const [name, re] of countries) {\n    if (re.test(t)) return name;\n  }\n\n  return 'Unknown';\n}\n\nfunction regionOf(country, fallback) {\n  if (country === 'United States') return 'USA';\n  if (country === 'United Arab Emirates') return 'UAE';\n\n  if ([\n    'United Kingdom', 'Germany', 'Ireland', 'Netherlands', 'France',\n    'Spain', 'Italy', 'Portugal', 'Sweden', 'Norway', 'Denmark',\n    'Finland', 'Estonia', 'Poland', 'Switzerland', 'Austria',\n    'Belgium', 'Czechia', 'Romania', 'Lithuania', 'Latvia',\n    'Greece', 'Ukraine'\n  ].includes(country)) {\n    return 'Europe';\n  }\n\n  if ([\n    'Singapore', 'India', 'Japan', 'South Korea', 'Hong Kong',\n    'Taiwan', 'Malaysia', 'Philippines', 'Indonesia', 'Thailand',\n    'Vietnam', 'China', 'Australia'\n  ].includes(country)) {\n    return 'Asia';\n  }\n\n  return fallback || 'Unknown';\n}\n\nconst rank = {\n  USA: 1,\n  Europe: 2,\n  Asia: 3,\n  UAE: 4,\n  Unknown: 5\n};\n\nfor (let i = 0; i < items.length; i++) {\n  const data = items[i].json || {};\n  const query = queryItems[i]?.json || {};\n\n  const results = Array.isArray(data.results) ? data.results : [];\n\n  for (const r of results) {\n    const url = clean(r.url);\n    const slug = slugFromUrl(url);\n\n    if (!slug) continue;\n\n    const title = clean(r.title);\n    const content = clean(\n      r.content || r.description || r.raw_content || ''\n    );\n\n    const combined = `${title}\\n${content}`;\n\n    let name = title\n      .replace(/\\s*[|–-]\\s*LinkedIn.*$/i, '')\n      .replace(/\\s*[|–-]\\s*LinkedIn$/i, '')\n      .trim();\n\n    if (!name || /^(linkedin|company)$/i.test(name)) {\n      name = slug\n        .replace(/-/g, ' ')\n        .replace(/\\b\\w/g, c => c.toUpperCase());\n    }\n\n    const size = sizeFrom(combined);\n    if (!size) continue;\n\n    const industry = industryFrom(combined);\n    if (industry === 'Unknown') continue;\n\n    const country = countryFrom(combined);\n    const region = regionOf(country, query.region);\n\n    const key = slug.toLowerCase();\n\n    if (seen.has(key)) continue;\n    seen.add(key);\n\n    leads.push({\n      companyName: name,\n      linkedinUrl: url,\n      linkedinSlug: slug,\n      companySize: size.label,\n      employeeCountMin: size.min,\n      employeeCountMax: size.max,\n      country,\n      industry,\n      targetRegion: region,\n      regionPriority: rank[region] || 5,\n      companyDescription: content.slice(0, 900),\n      __source: 'new',\n      sizeEvidence: size.exact\n        ? 'Exact employee count'\n        : 'Employee-size band',\n      discoveryQuery: query.query || ''\n    });\n  }\n}\n\nleads.sort(\n  (a, b) =>\n    (a.regionPriority - b.regionPriority) ||\n    (b.employeeCountMax - a.employeeCountMax) ||\n    a.companyName.localeCompare(b.companyName)\n);\n\nreturn leads.map(json => ({ json }));"
+      },
+      "id": "0f6fd974-9489-4257-9ada-5b227ff1343d",
+      "name": "Parse & Qualify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        -160
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Weekly Execution Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Targeted Discovery Queries",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Existing Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Targeted Discovery Queries": {
+      "main": [
+        [
+          {
+            "node": "Tavily Targeted Company Discovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Targeted Company Discovery": {
+      "main": [
+        [
+          {
+            "node": "Parse & Qualify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Leads": {
+      "main": [
+        [
+          {
+            "node": "Mark Existing Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Existing Leads": {
+      "main": [
+        [
+          {
+            "node": "Merge New Candidates With Existing Leads",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge New Candidates With Existing Leads": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate Against Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate Against Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Generate Lightweight Budget Signal Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Lightweight Budget Signal Query": {
+      "main": [
+        [
+          {
+            "node": "Tavily Lightweight Budget Signal Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Lightweight Budget Signal Research": {
+      "main": [
+        [
+          {
+            "node": "Calculate Lightweight Budget Fit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Lightweight Budget Fit": {
+      "main": [
+        [
+          {
+            "node": "Prepare Six-Column V1 Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Six-Column V1 Row": {
+      "main": [
+        [
+          {
+            "node": "Save V1 Prospects to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Qualify": {
+      "main": [
+        [
+          {
+            "node": "Merge New Candidates With Existing Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save V1 Prospects to Google Sheets": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "5864e347-1d5c-4f3d-9731-f9de603a02e7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "edc050c75bc141c2b5996c4b79974701196a727d165a2721fac362ecfc7e40a1"
+  },
+  "nodeGroups": [],
+  "id": "G1EofavlOxvsX24N",
+  "tags": []
+}

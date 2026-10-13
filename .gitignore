@@ -1,0 +1,36 @@
+# Environment & Secret Files
+.env
+.env.*
+*.env
+credentials.json
+secrets.json
+
+# n8n Local Data & Logs
+.n8n/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Node / Dependencies (if running custom scripts or n8n nodes)
+node_modules/
+dist/
+build/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Exported Data & Test Output
+*.csv
+*.xlsx
+/output/
+/temp/
